@@ -8,7 +8,10 @@ const stharaSchema = new Schema({
 const Sthara = mongoose.model("stharas", stharaSchema);
 
 const entitySchema = new Schema({
-  name: String,
+  name: {
+    type: String,
+    required: true,
+  },
   sthara: {
     type: mongoose.Schema.Types.ObjectId,
     ref: Sthara,

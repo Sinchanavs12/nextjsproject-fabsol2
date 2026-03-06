@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "merge": "node scripts/mergeUsers.js",
+    "merge:collections": "node -r dotenv/config scripts/mergeCollections.js"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

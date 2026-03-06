@@ -7,6 +7,25 @@ dotenv.config({ path: ".env" });
 
 const { Sthara, Entity, ParentEntity } = models;
 
+/* --------------------------------------------------
+   🔹 Normalize Name Function
+   Converts:
+   "MANGALURU" → "Mangaluru"
+   "  mangaluru  " → "Mangaluru"
+-------------------------------------------------- */
+function normalizeName(name) {
+  if (!name) return null;
+
+  return name
+    .toString()
+    .trim()
+    .replace(/\s+/g, " ") // remove extra spaces
+    .toLowerCase()
+    .split(" ")
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 async function connectDB() {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
@@ -27,17 +46,15 @@ async function upload() {
   console.log("📊 Total Rows Found:", rows.length);
 
   // -----------------------------
-  // 1️⃣ Load caches
+  // 1️⃣ Load Sthara Cache
   // -----------------------------
   const stharaNames = ["Pranth", "Vibhag", "Taluku", "Mandala", "Grama"];
   const stharaCache = {};
-  const entityCache = {}; // key = `${name}_${stharaId}`
+  const entityCache = {}; // key = `${normalizedName}_${stharaId}`
 
-  // load existing sthara
   const existingSthara = await Sthara.find({ name: { $in: stharaNames } });
   existingSthara.forEach((s) => (stharaCache[s.name] = s));
 
-  // create missing sthara
   const missingStharaNames = stharaNames.filter((name) => !stharaCache[name]);
   if (missingStharaNames.length > 0) {
     const newStharas = await Sthara.insertMany(
@@ -46,25 +63,28 @@ async function upload() {
     newStharas.forEach((s) => (stharaCache[s.name] = s));
   }
 
-  // preload existing entities
+  // -----------------------------
+  // 2️⃣ Preload Existing Entities
+  // -----------------------------
   const entities = await Entity.find({});
   entities.forEach((e) => {
-    const key = `${e.name}_${e.sthara}`;
+    const normalized = normalizeName(e.name);
+    const key = `${normalized}_${e.sthara.toString()}`;
     entityCache[key] = e;
   });
 
-  // -----------------------------
-  // 2️⃣ Prepare bulk inserts
-  // -----------------------------
   const newEntities = [];
   const parentLinksSet = new Set();
 
+  // -----------------------------
+  // 3️⃣ Process Excel Rows
+  // -----------------------------
   rows.forEach((row, idx) => {
-    const pranth = row["Jilla / Bhag"];
-    const vibhag = row["Vibhaga"];
-    const taluku = row["Taluku / Nagara"];
-    const mandala = row["Mandala / Vasati"];
-    const grama = row["Grama / Upavasathi"];
+    const pranth = normalizeName(row["Jilla / Bhag"]);
+    const vibhag = normalizeName(row["Vibhaga"]);
+    const taluku = normalizeName(row["Taluku / Nagara"]);
+    const mandala = normalizeName(row["Mandala / Vasati"]);
+    const grama = normalizeName(row["Grama / Upavasathi"]);
 
     const stharas = {
       Pranth: stharaCache["Pranth"],
@@ -74,16 +94,16 @@ async function upload() {
       Grama: stharaCache["Grama"],
     };
 
-    // Helper to get or create entity
     function getOrAddEntity(name, sthara) {
-      if (!name) return null;
-      const key = `${name}_${sthara._id}`;
+      if (!name || !sthara) return null;
+
+      const key = `${name}_${sthara._id.toString()}`;
       if (entityCache[key]) return entityCache[key];
 
-      // not found → create new entity object (bulk insert later)
       const newEntity = { name, sthara: sthara._id };
       newEntities.push(newEntity);
-      entityCache[key] = newEntity; // temporarily store with _id undefined
+      entityCache[key] = newEntity;
+
       return newEntity;
     }
 
@@ -93,9 +113,9 @@ async function upload() {
     const eMandala = getOrAddEntity(mandala, stharas.Mandala);
     const eGrama = getOrAddEntity(grama, stharas.Grama);
 
-    // Prepare parent links
     function addParent(child, parent) {
       if (!child || !parent) return;
+
       const key = `${child.name}_${parent.name}_${child.sthara}_${parent.sthara}`;
       parentLinksSet.add(key);
     }
@@ -105,35 +125,48 @@ async function upload() {
     addParent(eMandala, eTaluku);
     addParent(eGrama, eMandala);
 
-    if ((idx + 1) % 1000 === 0) console.log(`🚀 Processed ${idx + 1} rows`);
+    if ((idx + 1) % 1000 === 0)
+      console.log(`🚀 Processed ${idx + 1} rows`);
   });
 
   // -----------------------------
-  // 3️⃣ Insert new entities
+  // 4️⃣ Insert New Entities
   // -----------------------------
   if (newEntities.length > 0) {
     const insertedEntities = await Entity.insertMany(newEntities, {
       ordered: false,
     });
-    // update cache with real _id
+
     insertedEntities.forEach((e) => {
-      const key = `${e.name}_${e.sthara}`;
+      const normalized = normalizeName(e.name);
+      const key = `${normalized}_${e.sthara.toString()}`;
       entityCache[key] = e;
     });
+
+    console.log("✅ New Entities Inserted:", insertedEntities.length);
   }
 
   // -----------------------------
-  // 4️⃣ Insert ParentEntity links
+  // 5️⃣ Insert Parent Links
   // -----------------------------
   const parentLinks = Array.from(parentLinksSet).map((key) => {
-    const [childName, parentName, childStharaId, parentStharaId] = key.split("_");
+    const [childName, parentName, childStharaId, parentStharaId] =
+      key.split("_");
+
     const child = entityCache[`${childName}_${childStharaId}`];
     const parent = entityCache[`${parentName}_${parentStharaId}`];
-    return { currentEntity: child._id, parentEntity: parent._id };
-  });
+
+    if (!child || !parent) return null;
+
+    return {
+      currentEntity: child._id,
+      parentEntity: parent._id,
+    };
+  }).filter(Boolean);
 
   if (parentLinks.length > 0) {
     await ParentEntity.insertMany(parentLinks, { ordered: false });
+    console.log("✅ Parent Links Inserted:", parentLinks.length);
   }
 
   console.log("🎉 Hierarchy uploaded successfully!");
