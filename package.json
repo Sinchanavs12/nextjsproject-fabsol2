@@ -7,8 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "merge": "node scripts/mergeUsers.js",
-    "merge:collections": "node -r dotenv/config scripts/mergeCollections.js"
+    "merge": "tsx scripts/mergeCollections.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -21,6 +20,7 @@
     "qrcode.react": "^4.2.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "tsx": "^4.21.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
