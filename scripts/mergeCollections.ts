@@ -22,99 +22,99 @@ async function mergeCollections() {
       CREATE ssdata_merged
   ===================================================== */
 
-//   console.log("Creating ssdata_merged...");
+  console.log("Creating ssdata_merged...");
 
-//   const ssMergedDocs:any[] = [];
+  const ssMergedDocs:any[] = [];
 
-//   // copy ssdatas
-//   for (const ss of ssdatas) {
+  // copy ssdatas
+  for (const ss of ssdatas) {
 
-//     ssMergedDocs.push({
-//       name: ss.name,
-//       phone: ss.phone,
-//       email: ss.email,
-//       bloodGroup: ss.bloodGroup,
-//       currentAddress: ss.currentAddress,
-//       education: ss.education,
-//       profession: ss.profession,
-//       otherProfession: ss.otherProfession,
-//       dob: ss.dob
-//     });
+    ssMergedDocs.push({
+      name: ss.name,
+      phone: ss.phone,
+      email: ss.email,
+      bloodGroup: ss.bloodGroup,
+      currentAddress: ss.currentAddress,
+      education: ss.education,
+      profession: ss.profession,
+      otherProfession: ss.otherProfession,
+      dob: ss.dob
+    });
 
-//   }
+  }
 
-//   const ssNames = new Set(ssdatas.map((s:any) => s.name));
+  const ssNames = new Set(ssdatas.map((s:any) => s.name));
 
-//   for (const p of participants) {
+  for (const p of participants) {
 
-//     if (!ssNames.has(p.name)) {
+    if (!ssNames.has(p.name)) {
 
-//       ssMergedDocs.push({
-//         name: p.name,
-//         phone: p.phone,
-//         email: p.email,
-//         profession: p.profession,
-//         otherProfession: p.otherProfession,
-//         dob: p.dob
-//       });
+      ssMergedDocs.push({
+        name: p.name,
+        phone: p.phone,
+        email: p.email,
+        profession: p.profession,
+        otherProfession: p.otherProfession,
+        dob: p.dob
+      });
 
-//     }
+    }
 
-//   }
+  }
 
-//   await SsdataMerged.insertMany(ssMergedDocs);
+  await SsdataMerged.insertMany(ssMergedDocs);
 
-//   console.log("✅ ssdata_merged completed");
+  console.log("✅ ssdata_merged completed");
 
 
   /* =====================================================
       CREATE sanghdata_merged
   ===================================================== */
 
-//   console.log("Creating sanghdata_merged...");
+  console.log("Creating sanghdata_merged...");
 
-//   const sanghMergedDocs:any[] = [];
+  const sanghMergedDocs:any[] = [];
 
-//   // copy sanghdatas
-//   for (const s of sanghdatas) {
+  // copy sanghdatas
+  for (const s of sanghdatas) {
 
-//     sanghMergedDocs.push({
-//       shakhe: s.shakhe,
-//       upavasati: s.upavasati,
-//       vasati: s.vasati,
-//       nagar: s.nagar,
-//       bhag: s.bhag,
-//       vibhag: s.vibhag,
-//       prant: s.prant,
-//       sanghaResponsibility: s.sanghaResponsibility,
-//       sanghShikshan: s.sanghShikshan,
-//       ssdata: s.ssdata
-//     });
+    sanghMergedDocs.push({
+      shakhe: s.shakhe,
+      upavasati: s.upavasati,
+      vasati: s.vasati,
+      nagar: s.nagar,
+      bhag: s.bhag,
+      vibhag: s.vibhag,
+      prant: s.prant,
+      sanghaResponsibility: s.sanghaResponsibility,
+      sanghShikshan: s.sanghShikshan,
+      ssdata: s.ssdata
+    });
 
-//   }
+  }
 
-//   const sanghUsers = new Set(sanghdatas.map((s:any) => s.ssdata?.toString()));
+  const sanghUsers = new Set(sanghdatas.map((s:any) => s.ssdata?.toString()));
 
-//   for (const p of participants) {
+  for (const p of participants) {
 
-//   if (!p._id) continue;
+  if (!p._id) continue;
 
-//   const participantId = p._id.toString();
+  const participantId = p._id.toString();
 
-//   if (!sanghUsers.has(participantId) && p.sanghaResponsibility) {
+  if (!sanghUsers.has(participantId) && p.sanghaResponsibility) {
 
-//     sanghMergedDocs.push({
-//       _id: new mongoose.Types.ObjectId(),
-//       sanghaResponsibility: p.sanghaResponsibility
-//     });
+    sanghMergedDocs.push({
+      _id: new mongoose.Types.ObjectId(),
+      sanghaResponsibility: p.sanghaResponsibility
+    });
 
-//   }
+  }
 
-// }
+}
 
-//   await SanghdataMerged.insertMany(sanghMergedDocs);
+  await SanghdataMerged.insertMany(sanghMergedDocs);
 
-//   console.log("✅ sanghdata_merged completed");
+  console.log("✅ sanghdata_merged completed");
 
   /* =====================================================
    CREATE locations_merged
