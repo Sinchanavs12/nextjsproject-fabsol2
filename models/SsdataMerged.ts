@@ -9,19 +9,53 @@ export interface ISsdataMerged extends Document {
   education?: string;
   profession?: string;
   otherProfession?: string;
+  job?: string;
   dob?: string;
 }
 
 const SsdataMergedSchema: Schema = new Schema({
-  name: String,
-  phone: String,
-  email: String,
-  bloodGroup: String,
-  currentAddress: Schema.Types.ObjectId,
-  education: String,
-  profession: String,
-  otherProfession: String,
-  dob: String
+
+  name: {
+    type: String
+  },
+
+  phone: {
+    type: String
+  },
+
+  email: {
+    type: String
+  },
+
+  bloodGroup: {
+    type: String
+  },
+
+  currentAddress: {
+    type: Schema.Types.ObjectId,
+    ref: "locations_merged"
+  },
+
+  education: {
+    type: String
+  },
+
+  profession: {
+    type: String
+  },
+
+  otherProfession: {
+    type: String
+  },
+
+  job: {
+    type: String
+  },
+
+  dob: {
+    type: String
+  }
+
 });
 
 export default mongoose.model<ISsdataMerged>(

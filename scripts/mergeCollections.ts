@@ -10,13 +10,69 @@ async function mergeCollections() {
   await connectDB();
 
   const db = mongoose.connection.db!;
-  
+
   console.log("🚀 Starting merge");
 
+  console.log("Loading participants...");
   const participants = await db.collection("participants").find().toArray();
+  console.log("Participants loaded:", participants.length);
+
+  console.log("Loading ssdatas...");
   const ssdatas = await db.collection("ssdatas").find().toArray();
+  console.log("SSDatas loaded:", ssdatas.length);
+
+  console.log("Loading sanghdatas...");
   const sanghdatas = await db.collection("sanghdatas").find().toArray();
+  console.log("Sanghdatas loaded:", sanghdatas.length);
+
+  console.log("Loading locations...");
   const locations = await db.collection("locations").find().toArray();
+  console.log("Locations loaded:", locations.length);
+
+  /* =====================================================
+      CREATE locations_merged
+  ===================================================== */
+
+  console.log("Creating locations_merged...");
+
+  const locationMergedDocs:any[] = [];
+  const locationIdMap = new Map();
+
+  for (const loc of locations) {
+
+    const newId = new mongoose.Types.ObjectId();
+
+    locationIdMap.set(loc._id.toString(), newId);
+
+    locationMergedDocs.push({
+      _id: newId,
+      address: loc.address,
+      pincode: loc.pincode,
+      upavasati: loc.upavasati
+    });
+
+  }
+
+  const locationIds = new Set(locations.map((l:any) => l._id.toString()));
+
+  for (const p of participants) {
+
+    if (!p.address || !locationIds.has(p.address.toString())) {
+
+      locationMergedDocs.push({
+        _id: new mongoose.Types.ObjectId(),
+        name: p.name,
+        phone: p.phone
+      });
+
+    }
+
+  }
+
+  await LocationsMerged.insertMany(locationMergedDocs,{ordered:false});
+
+  console.log("✅ locations_merged completed");
+
 
   /* =====================================================
       CREATE ssdata_merged
@@ -25,141 +81,151 @@ async function mergeCollections() {
   console.log("Creating ssdata_merged...");
 
   const ssMergedDocs:any[] = [];
+  const ssdataIdMap = new Map();
 
-  // copy ssdatas
   for (const ss of ssdatas) {
 
+    const newId = new mongoose.Types.ObjectId();
+
+    ssdataIdMap.set(ss._id.toString(), newId);
+
     ssMergedDocs.push({
+      _id: newId,
       name: ss.name,
       phone: ss.phone,
       email: ss.email,
       bloodGroup: ss.bloodGroup,
-      currentAddress: ss.currentAddress,
+      currentAddress: locationIdMap.get(ss.currentAddress?.toString()),
       education: ss.education,
       profession: ss.profession,
       otherProfession: ss.otherProfession,
+      job: ss.job,
       dob: ss.dob
     });
 
   }
 
-  const ssNames = new Set(ssdatas.map((s:any) => s.name));
+  const ssUsers = new Set(ssdatas.map((s:any)=>`${s.name}-${s.phone}`));
 
-  for (const p of participants) {
+  for(const p of participants){
 
-    if (!ssNames.has(p.name)) {
+    const key = `${p.name}-${p.phone}`;
+
+    if(!ssUsers.has(key)){
 
       ssMergedDocs.push({
-        name: p.name,
-        phone: p.phone,
-        email: p.email,
-        profession: p.profession,
-        otherProfession: p.otherProfession,
-        dob: p.dob
+        _id: new mongoose.Types.ObjectId(),
+        name:p.name,
+        phone:p.phone,
+        email:p.email,
+        profession:p.profession,
+        otherProfession:p.otherProfession,
+        job:p.job,
+        dob:p.dob
       });
 
     }
 
   }
 
-  await SsdataMerged.insertMany(ssMergedDocs);
+  await SsdataMerged.insertMany(ssMergedDocs, { ordered: false });
 
   console.log("✅ ssdata_merged completed");
 
 
-  /* =====================================================
-      CREATE sanghdata_merged
-  ===================================================== */
-
-  console.log("Creating sanghdata_merged...");
-
-  const sanghMergedDocs:any[] = [];
-
-  // copy sanghdatas
-  for (const s of sanghdatas) {
-
-    sanghMergedDocs.push({
-      shakhe: s.shakhe,
-      upavasati: s.upavasati,
-      vasati: s.vasati,
-      nagar: s.nagar,
-      bhag: s.bhag,
-      vibhag: s.vibhag,
-      prant: s.prant,
-      sanghaResponsibility: s.sanghaResponsibility,
-      sanghShikshan: s.sanghShikshan,
-      ssdata: s.ssdata
-    });
-
-  }
-
-  const sanghUsers = new Set(sanghdatas.map((s:any) => s.ssdata?.toString()));
-
-  for (const p of participants) {
-
-  if (!p._id) continue;
-
-  const participantId = p._id.toString();
-
-  if (!sanghUsers.has(participantId) && p.sanghaResponsibility) {
-
-    sanghMergedDocs.push({
-      _id: new mongoose.Types.ObjectId(),
-      sanghaResponsibility: p.sanghaResponsibility
-    });
-
-  }
-
-}
-
-  await SanghdataMerged.insertMany(sanghMergedDocs);
-
-  console.log("✅ sanghdata_merged completed");
-
-  /* =====================================================
-   CREATE locations_merged
+/* =====================================================
+    CREATE sanghdata_merged (FAST VERSION)
 ===================================================== */
 
-console.log("Creating locations_merged...");
+console.log("Creating sanghdata_merged...");
 
-const locationMergedDocs:any[] = [];
+const sanghMergedDocs: any[] = [];
 
-/* 1️⃣ Copy all locations */
+/* 1️⃣ Create fast lookup maps */
 
-for (const loc of locations) {
+// participantId → participant
+const participantMap = new Map(
+  participants.map((p: any) => [p._id?.toString(), p])
+);
 
-  locationMergedDocs.push({
-    address: loc.address,
-    pincode: loc.pincode,
-    upavasati: loc.upavasati
+// name+phone → ssdata_merged document
+const ssMergedLookup = new Map(
+  ssMergedDocs.map((ss: any) => [`${ss.name}-${ss.phone}`, ss])
+);
+
+/* 2️⃣ Process sanghdatas */
+
+for (const s of sanghdatas) {
+
+  const participant = participantMap.get(s.ssdata?.toString());
+
+  let newSsId = null;
+
+  if (participant) {
+    const key = `${participant.name}-${participant.phone}`;
+    const ssMerged = ssMergedLookup.get(key);
+
+    if (ssMerged) {
+      newSsId = ssMerged._id;
+    }
+  }
+
+  sanghMergedDocs.push({
+
+    _id: new mongoose.Types.ObjectId(),
+
+    shakhe: s.shakhe,
+    upavasati: s.upavasati,
+    vasati: s.vasati,
+    nagar: s.nagar,
+    bhag: s.bhag,
+    vibhag: s.vibhag,
+    prant: s.prant,
+
+    sanghaResponsibility: s.sanghaResponsibility,
+    sanghShikshan: s.sanghShikshan,
+
+    // reference new ssdata_merged
+    ssdata: newSsId
+
   });
 
 }
 
-/* 2️⃣ Add participants without location */
 
-const locationIds = new Set(
-  locations.map((l:any) => l._id.toString())
+/* 3️⃣ Add participants with responsibility but no sanghdata */
+
+const sanghUsers = new Set(
+  sanghdatas.map((s: any) => s.ssdata?.toString())
 );
 
 for (const p of participants) {
 
-  if (!p.address || !locationIds.has(p.address.toString())) {
+  if (!p._id) continue;
 
-    locationMergedDocs.push({
-      name: p.name,
-      phone: p.phone
+  const id = p._id.toString();
+
+  if (!sanghUsers.has(id) && p.sanghaResponsibility) {
+
+    sanghMergedDocs.push({
+
+      _id: new mongoose.Types.ObjectId(),
+      sanghaResponsibility: p.sanghaResponsibility
+
     });
 
   }
 
 }
 
-await LocationsMerged.insertMany(locationMergedDocs, { ordered:false });
 
-console.log("✅ locations_merged completed");
+/* 4️⃣ Insert into database */
 
-  process.exit();
+await SanghdataMerged.insertMany(sanghMergedDocs, { ordered: false });
+
+console.log("✅ sanghdata_merged completed");
+
+process.exit();
 }
 
 mergeCollections();

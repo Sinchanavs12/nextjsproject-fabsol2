@@ -1,22 +1,37 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface ILocationsMerged extends Document {
-  address?: string
-  pincode?: string
-  upavasati?: string
-  name?: string
-  phone?: string
+  address?: string;
+  pincode?: string;
+  upavasati?: string;
+
+  // for participants without location
+  name?: string;
+  phone?: string;
 }
 
 const LocationsMergedSchema: Schema = new Schema({
 
-  address: String,
-  pincode: String,
-  upavasati: String,
+  address: {
+    type: String
+  },
 
-  // only for participants without location
-  name: String,
-  phone: String
+  pincode: {
+    type: String
+  },
+
+  upavasati: {
+    type: String
+  },
+
+  // Only used when participant has no location reference
+  name: {
+    type: String
+  },
+
+  phone: {
+    type: String
+  }
 
 });
 
